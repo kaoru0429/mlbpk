@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="zh-TW" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MLB 第一摳 vs MLB 第一壕</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        mets: { blue: '#002D72', orange: '#FF5910' },
+                        rays: { navy: '#00285D', yellow: '#F5D130', lightBlue: '#8FBCE6' }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* AI 載入動畫 */
+        .loader {
+            border: 3px solid #374151;
+            border-bottom-color: #F5D130;
+            border-radius: 50%;
+            display: inline-block;
+            box-sizing: border-box;
+            animation: rotation 1s linear infinite;
+        }
+        @keyframes rotation {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* 隱藏預設滾動條以美化控制列 */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen p-4 md:p-8 font-sans">
+
+    <div class="max-w-6xl mx-auto space-y-6">
+        <!-- 標題與操作主控區 -->
+        <div class="bg-gray-800 p-4 md:p-6 rounded-xl shadow-lg border border-gray-700 flex flex-col gap-6">
+            
+            <!-- 頂部：插圖與主標題 -->
+            <div class="flex flex-col md:flex-row items-center justify-between gap-4">
+                <!-- 光芒諷刺圖 -->
+                <div class="flex items-center gap-3 bg-gray-900 px-4 py-3 rounded-lg border border-rays-yellow/40 shadow-inner w-full md:w-auto justify-center group hover:border-rays-yellow transition-all">
+                    <span class="text-3xl md:text-4xl group-hover:scale-110 transition-transform">🧮🐟</span>
+                    <div class="text-left">
+                        <div class="text-rays-yellow font-bold text-sm tracking-widest">MLB 第一摳</div>
+                        <div class="text-gray-400 text-xs">一塊錢打十個</div>
+                    </div>
+                </div>
+
+                <!-- 核心標題 -->
+                <div class="flex flex-col items-center flex-grow text-center">
+                    <h1 class="text-3xl md:text-4xl lg:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-rays-lightBlue via-white to-mets-orange tracking-wider drop-shadow-md pb-2">
+                        MLB 貧富大對決
+                    </h1>
+                </div>
+
+                <!-- 大都會諷刺圖 -->
+                <div class="flex items-center gap-3 bg-gray-900 px-4 py-3 rounded-lg border border-mets-orange/40 shadow-inner w-full md:w-auto justify-center group hover:border-mets-orange transition-all">
+                    <div class="text-right">
+                        <div class="text-mets-orange font-bold text-sm tracking-widest">MLB 第一壕</div>
+                        <div class="text-gray-400 text-xs">美金只是數字</div>
+                    </div>
+                    <span class="text-3xl md:text-4xl group-hover:scale-110 transition-transform">💸🔥</span>
+                </div>
+            </div>
+
+            <!-- 底部：清晰的操作面板 (Segmented Control) -->
+            <div class="w-full flex flex-col items-center border-t border-gray-700 pt-5">
+                <span class="text-xs text-gray-400 mb-3 font-semibold tracking-widest uppercase">📊 點擊切換數據觀測區間</span>
+                <div class="flex flex-nowrap overflow-x-auto w-full md:w-auto bg-gray-900 p-1 rounded-xl border border-gray-700 no-scrollbar" id="timeframe-controls">
+                    <!-- 預設啟用的按鈕 -->
+                    <button data-value="all" class="timeframe-btn flex-shrink-0 min-w-[140px] md:min-w-[160px] py-2 px-4 text-sm font-bold rounded-lg transition-all duration-200 bg-blue-600 text-white shadow-md">
+                        全時期 (08–25)
+                    </button>
+                    <!-- 其他未啟用的按鈕 -->
+                    <button data-value="cohen" class="timeframe-btn flex-shrink-0 min-w-[140px] md:min-w-[160px] py-2 px-4 text-sm font-bold rounded-lg transition-all duration-200 text-gray-400 hover:text-gray-200 hover:bg-gray-800">
+                        Cohen 時代 (22–25)
+                    </button>
+                    <button data-value="rays_strong" class="timeframe-btn flex-shrink-0 min-w-[140px] md:min-w-[160px] py-2 px-4 text-sm font-bold rounded-lg transition-all duration-200 text-gray-400 hover:text-gray-200 hover:bg-gray-800">
+                        光芒強勢期 (08–13)
+                    </button>
+                    <button data-value="rays_peak" class="timeframe-btn flex-shrink-0 min-w-[140px] md:min-w-[160px] py-2 px-4 text-sm font-bold rounded-lg transition-all duration-200 text-gray-400 hover:text-gray-200 hover:bg-gray-800">
+                        光芒重返巔峰 (19–21)
+                    </button>
+                </div>
+            </div>
+            <!-- 隱藏的 2020 修正開關，預設常駐，維持圖表計算正確性 -->
+            <input type="checkbox" id="std2020" checked class="hidden"> 
+        </div>
+
+        <!-- 核心指標卡片 -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- 光芒 KPI -->
+            <div class="bg-gray-800 p-6 rounded-xl shadow-lg border-l-4 border-rays-yellow relative overflow-hidden">
+                <div class="absolute top-0 right-0 p-4 opacity-20 text-6xl font-black italic text-rays-yellow">RAYS</div>
+                <h3 class="text-lg font-bold text-gray-300 mb-4">坦帕灣光芒 (Tampa Bay Rays)</h3>
+                <div class="grid grid-cols-3 gap-4 text-center">
+                    <div>
+                        <p class="text-xs text-gray-400">平均每勝成本</p>
+                        <p id="rays-cpw" class="text-xl md:text-2xl font-bold text-rays-yellow mt-1">--</p>
+                    </div>
+                    <div>
+                        <p class="text-xs text-gray-400">總勝場</p>
+                        <p id="rays-wins" class="text-xl md:text-2xl font-bold text-white mt-1">--</p>
+                    </div>
+                    <div>
+                        <p class="text-xs text-gray-400">總薪資 (M$)</p>
+                        <p id="rays-pay" class="text-xl md:text-2xl font-bold text-white mt-1">--</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 大都會 KPI -->
+            <div class="bg-gray-800 p-6 rounded-xl shadow-lg border-l-4 border-mets-orange relative overflow-hidden">
+                <div class="absolute top-0 right-0 p-4 opacity-20 text-6xl font-black italic text-mets-orange">METS</div>
+                <h3 class="text-lg font-bold text-gray-300 mb-4">紐約大都會 (New York Mets)</h3>
+                <div class="grid grid-cols-3 gap-4 text-center">
+                    <div>
+                        <p class="text-xs text-gray-400">平均每勝成本</p>
+                        <p id="mets-cpw" class="text-xl md:text-2xl font-bold text-mets-orange mt-1">--</p>
+                    </div>
+                    <div>
+                        <p class="text-xs text-gray-400">總勝場</p>
+                        <p id="mets-wins" class="text-xl md:text-2xl font-bold text-white mt-1">--</p>
+                    </div>
+                    <div>
+                        <p class="text-xs text-gray-400">總薪資 (M$)</p>
+                        <p id="mets-pay" class="text-xl md:text-2xl font-bold text-white mt-1">--</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 圖表區 -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div class="bg-gray-800 p-4 rounded-xl shadow-lg border border-gray-700">
+                <h3 class="text-center text-sm font-semibold text-gray-300 mb-4">年度每勝成本趨勢比對 (百萬美元)</h3>
+                <div class="relative h-72">
+                    <canvas id="costChart"></canvas>
+                </div>
+            </div>
+            <div class="bg-gray-800 p-4 rounded-xl shadow-lg border border-gray-700">
+                <h3 class="text-center text-sm font-semibold text-gray-300 mb-4">總薪資 vs 換算後總勝場 效能分佈</h3>
+                <div class="relative h-72">
+                    <canvas id="perfChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- AI 總管顧問區塊 (Gemini API 整合) -->
+        <div class="bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-700 border-t-4 border-t-blue-500">
+            <h2 class="text-xl font-bold text-white mb-4 flex items-center">
+                <span class="mr-2">🤖</span> AI 總管顧問 (Powered by Gemini)
+            </h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- 自動洞察生成 -->
+                <div class="bg-gray-700/50 p-4 rounded-lg border border-gray-600 flex flex-col">
+                    <h3 class="text-sm font-semibold text-gray-300 mb-2">基於當前數據的分析報告</h3>
+                    <p class="text-xs text-gray-400 mb-4 flex-grow">點擊按鈕，AI 將根據上方選擇的「時間區間」，為這兩支球隊的營運效能撰寫一篇深度的比較觀點。</p>
+                    <button id="btn-generate-insight" class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold py-2 px-4 rounded transition-all flex items-center justify-center">
+                        ✨ 產生當前區間深度洞察
+                    </button>
+                </div>
+
+                <!-- 自由問答 -->
+                <div class="bg-gray-700/50 p-4 rounded-lg border border-gray-600 flex flex-col">
+                    <h3 class="text-sm font-semibold text-gray-300 mb-2">向數據顧問提問</h3>
+                    <p class="text-xs text-gray-400 mb-2">對這兩支球隊的薪資結構或建軍策略有疑問嗎？直接問 AI 吧！</p>
+                    <textarea id="ai-question-input" rows="2" class="w-full bg-gray-900 border border-gray-600 text-white rounded p-2 mb-2 focus:outline-none focus:border-blue-500 text-sm" placeholder="例如：光芒隊是怎麼在低薪資下維持競爭力的？"></textarea>
+                    <button id="btn-ask-ai" class="w-full bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-4 rounded transition-all mt-auto flex items-center justify-center">
+                        ✨ 詢問數據顧問
+                    </button>
+                </div>
+
+                <!-- 模擬休賽季操作 -->
+                <div class="bg-gray-700/50 p-4 rounded-lg border border-gray-600 flex flex-col">
+                    <h3 class="text-sm font-semibold text-gray-300 mb-2">模擬休賽季操作</h3>
+                    <p class="text-xs text-gray-400 mb-2">輸入假設性簽約或交易，AI 將評估對球隊「每勝成本」的潛在影響。</p>
+                    <textarea id="ai-trade-input" rows="2" class="w-full bg-gray-900 border border-gray-600 text-white rounded p-2 mb-2 focus:outline-none focus:border-blue-500 text-sm" placeholder="例如：大都會以 50M 簽下某王牌，預計能多贏 5 場。"></textarea>
+                    <button id="btn-simulate-trade" class="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-2 px-4 rounded transition-all mt-auto flex items-center justify-center">
+                        ✨ 評估操作效益
+                    </button>
+                </div>
+                
+                <!-- 新增：球員價值探測器 -->
+                <div class="bg-gray-700/50 p-4 rounded-lg border border-gray-600 flex flex-col">
+                    <h3 class="text-sm font-semibold text-gray-300 mb-2">球員價值探測器</h3>
+                    <p class="text-xs text-gray-400 mb-2">輸入任何球員姓名，讓 AI 判斷他的合約比較符合哪隊風格。</p>
+                    <input type="text" id="ai-player-input" class="w-full bg-gray-900 border border-gray-600 text-white rounded p-2 mb-2 focus:outline-none focus:border-blue-500 text-sm" placeholder="例如：大谷翔平、Aaron Judge">
+                    <button id="btn-scout-player" class="w-full bg-teal-600 hover:bg-teal-500 text-white font-bold py-2 px-4 rounded transition-all mt-auto flex items-center justify-center">
+                        ✨ 啟動球探評估
+                    </button>
+                </div>
+
+                <!-- 🔥 新增：鄉民炎上產生器 -->
+                <div class="bg-gray-700/50 p-4 rounded-lg border border-gray-600 flex flex-col">
+                    <h3 class="text-sm font-semibold text-gray-300 mb-2">🔥 鄉民炎上產生器</h3>
+                    <p class="text-xs text-gray-400 mb-2">一鍵生成帶有真實數據的 PTT/Reddit 嘲諷引戰廢文，搧風點火必備。</p>
+                    <select id="troll-target" class="w-full bg-gray-900 border border-gray-600 text-white rounded p-2 mb-2 focus:outline-none focus:border-red-500 text-sm">
+                        <option value="mets_owner">嘲諷大都會：錢多卻買不到冠軍</option>
+                        <option value="rays_owner">酸光芒老闆：賺爛了卻死不花錢</option>
+                        <option value="ny_fans">無情開嘲：讓紐約球迷大崩潰</option>
+                    </select>
+                    <button id="btn-generate-troll" class="w-full bg-red-700 hover:bg-red-600 text-white font-bold py-2 px-4 rounded transition-all mt-auto flex items-center justify-center">
+                        ✨ 產生引戰廢文
+                    </button>
+                </div>
+
+                <!-- 🌌 新增：平行時空幻想機 -->
+                <div class="bg-gray-700/50 p-4 rounded-lg border border-gray-600 flex flex-col">
+                    <h3 class="text-sm font-semibold text-gray-300 mb-2">🌌 平行時空幻想機</h3>
+                    <p class="text-xs text-gray-400 mb-2">如果光芒隊拿到了大都會的 3 億美元預算，大聯盟會發生什麼事？</p>
+                    <button id="btn-alternate-universe" class="w-full bg-blue-700 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded transition-all mt-auto flex items-center justify-center">
+                        ✨ 模擬瘋狂宇宙
+                    </button>
+                </div>
+
+                <!-- AI 戰況諷刺漫畫生成 (原本的改為跨 3 欄) -->
+                <div class="bg-gray-700/50 p-4 rounded-lg border border-gray-600 flex flex-col md:col-span-3">
+                    <h3 class="text-sm font-semibold text-gray-300 mb-2">生成戰況諷刺漫畫 (Imagen 4)</h3>
+                    <p class="text-xs text-gray-400 mb-2">根據目前選擇區間的「每勝成本落差」，召喚 Gemini 圖像模型為這兩支球隊的處境即時繪製一張專屬美式諷刺漫畫。</p>
+                    <button id="btn-generate-image" class="w-full bg-pink-600 hover:bg-pink-500 text-white font-bold py-2 px-4 rounded transition-all mt-auto flex items-center justify-center">
+                        ✨ 繪製專屬諷刺漫畫
+                    </button>
+                </div>
+            </div>
+
+            <!-- AI 輸出結果顯示區 -->
+            <div id="ai-output-container" class="mt-6 hidden">
+                <div class="bg-gray-900 rounded-lg p-5 border border-gray-700 relative">
+                    <div id="ai-loading" class="hidden absolute inset-0 bg-gray-900/80 flex items-center justify-center rounded-lg z-10">
+                        <span class="loader w-8 h-8"></span>
+                        <span class="ml-3 text-gray-300 text-sm font-semibold tracking-wider">AI 分析中...</span>
+                    </div>
+                    <h4 class="text-blue-400 text-sm font-bold mb-2 flex items-center">
+                        <span class="mr-2">💡</span> 分析結果
+                        <button id="btn-play-audio" class="ml-auto bg-green-600 hover:bg-green-500 text-white text-xs py-1 px-3 rounded hidden transition-all flex items-center">
+                            ✨ 語音播報
+                        </button>
+                    </h4>
+                    <div id="ai-response-text" class="text-gray-300 text-sm leading-relaxed whitespace-pre-wrap min-h-[4rem]">
+                        <!-- AI 回應將顯示於此 -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 敘述脈絡 -->
+        <div class="bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-700 text-sm text-gray-300 leading-relaxed">
+            <ul class="list-disc pl-5 space-y-2">
+                <li>光芒在 2025 年例行賽系列賽中橫掃大都會，大都會壘上留下 30 名殘壘，得點圈打擊率僅 .148——一支薪資不到對方四分之一的球隊，把「史上最貴球隊」打得毫無辦法。</li>
+                <li>光芒的歷史成績單 (2008–2013)：550 勝，MLB 第二佳戰績，四度季後賽，一次美聯冠軍。</li>
+                <li>這段期間光芒團隊薪資從未超過 1 億美元，即使是大都會最窮的那幾年，花費也是光芒的兩倍以上。</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        // 原始數據設定
+        const years = [2008, 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025];
+        const rawData = {
+            rays: {
+                payroll: [44, 63, 72, 41, 64, 57, 72, 67, 80, 68, 70, 68, 28, 70, 76, 74, 89, 82],
+                wins: [97, 84, 96, 91, 90, 92, 77, 80, 68, 80, 90, 96, 40, 100, 86, 99, 80, 80]
+            },
+            mets: {
+                payroll: [138, 149, 134, 118, 93, 88, 82, 101, 120, 155, 152, 162, 65, 162, 223, 320, 333, 350],
+                wins: [89, 70, 79, 77, 74, 74, 79, 90, 87, 70, 77, 86, 26, 77, 101, 75, 89, 79]
+            }
+        };
+
+        let costChartInstance = null;
+        let perfChartInstance = null;
+        
+        // 當前選擇的區間變數
+        let currentTimeframe = 'all';
+
+        // Gemini API 相關設定
+        const apiKey = ""; 
+        const MODEL_NAME = "gemini-2.5-flash-preview-09-2025";
+        const TTS_MODEL_NAME = "gemini-2.5-flash-preview-tts";
+        const IMAGEN_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key=${apiKey}`;
+        const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${apiKey}`;
+        const TTS_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${TTS_MODEL_NAME}:generateContent?key=${apiKey}`;
+
+        let currentResponseText = "";
+
+        const formatMoney = (num) => {
+            if (num >= 1) return `$${num.toFixed(2)}M`;
+            return `$${(num * 1000).toFixed(0)}k`;
+        };
+
+        // 按鈕列的互動邏輯
+        const timeframeButtons = document.querySelectorAll('.timeframe-btn');
+        timeframeButtons.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                // 重置所有按鈕樣式
+                timeframeButtons.forEach(b => {
+                    b.className = "timeframe-btn flex-shrink-0 min-w-[140px] md:min-w-[160px] py-2 px-4 text-sm font-bold rounded-lg transition-all duration-200 text-gray-400 hover:text-gray-200 hover:bg-gray-800";
+                });
+                // 啟用當前點擊的按鈕
+                const target = e.currentTarget;
+                target.className = "timeframe-btn active flex-shrink-0 min-w-[140px] md:min-w-[160px] py-2 px-4 text-sm font-bold rounded-lg transition-all duration-200 bg-blue-600 text-white shadow-md";
+                
+                // 更新數據並重繪
+                currentTimeframe = target.dataset.value;
+                updateDashboard();
+            });
+        });
+
+        function updateDashboard() {
+            const isStd2020 = document.getElementById('std2020').checked;
+            
+            let startIdx = 0, endIdx = years.length - 1;
+            if (currentTimeframe === 'cohen') { startIdx = 14; endIdx = 17; }
+            else if (currentTimeframe === 'rays_strong') { startIdx = 0; endIdx = 5; }
+            else if (currentTimeframe === 'rays_peak') { startIdx = 11; endIdx = 13; }
+
+            let labels = [];
+            let rPay = [], mPay = [], rWins = [], mWins = [], rCpw = [], mCpw = [];
+            let totalRPay = 0, totalMPay = 0, totalRWins = 0, totalMWins = 0;
+
+            for (let i = startIdx; i <= endIdx; i++) {
+                labels.push(years[i]);
+                rPay.push(rawData.rays.payroll[i]);
+                mPay.push(rawData.mets.payroll[i]);
+                
+                totalRPay += rawData.rays.payroll[i];
+                totalMPay += rawData.mets.payroll[i];
+
+                let currentRWin = rawData.rays.wins[i];
+                let currentMWin = rawData.mets.wins[i];
+                if (years[i] === 2020 && isStd2020) {
+                    currentRWin = Math.round(currentRWin * (162 / 60));
+                    currentMWin = Math.round(currentMWin * (162 / 60));
+                }
+                
+                rWins.push(currentRWin);
+                mWins.push(currentMWin);
+                totalRWins += currentRWin;
+                totalMWins += currentMWin;
+
+                rCpw.push(rawData.rays.payroll[i] / currentRWin);
+                mCpw.push(rawData.mets.payroll[i] / currentMWin);
+            }
+
+            const avgRCpw = totalRPay / totalRWins;
+            const avgMCpw = totalMPay / totalMWins;
+            
+            document.getElementById('rays-cpw').textContent = formatMoney(avgRCpw);
+            document.getElementById('rays-wins').textContent = totalRWins;
+            document.getElementById('rays-pay').textContent = `$${totalRPay}M`;
+            
+            document.getElementById('mets-cpw').textContent = formatMoney(avgMCpw);
+            document.getElementById('mets-wins').textContent = totalMWins;
+            document.getElementById('mets-pay').textContent = `$${totalMPay}M`;
+
+            renderCostChart(labels, rCpw, mCpw);
+            renderPerfChart(totalRPay, totalMPay, totalRWins, totalMWins);
+        }
+
+        async function fetchGeminiAPI(prompt, systemInstruction = "") {
+            const payload = { contents: [{ parts: [{ text: prompt }] }] };
+            if (systemInstruction) payload.systemInstruction = { parts: [{ text: systemInstruction }] };
+            const options = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) };
+            const delays = [1000, 2000, 4000, 8000, 16000];
+            
+            for (let i = 0; i < 5; i++) {
+                try {
+                    const response = await fetch(API_URL, options);
+                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                    const result = await response.json();
+                    return result.candidates?.[0]?.content?.parts?.[0]?.text || "AI 尚未回傳有效內容。";
+                } catch (error) {
+                    if (i === 4) throw new Error("連線超時或 API 發生錯誤，請稍後再試。");
+                    await new Promise(res => setTimeout(res, delays[i]));
+                }
+            }
+        }
+
+        function base64ToInt16Array(base64) {
+            const binaryString = window.atob(base64);
+            const bytes = new Uint8Array(binaryString.length);
+            for (let i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
+            return new Int16Array(bytes.buffer);
+        }
+
+        function pcmToWav(pcmData, sampleRate) {
+            const numChannels = 1, bitsPerSample = 16;
+            const byteRate = sampleRate * numChannels * (bitsPerSample / 8);
+            const blockAlign = numChannels * (bitsPerSample / 8);
+            const dataSize = pcmData.length * (bitsPerSample / 8);
+            const buffer = new ArrayBuffer(44 + dataSize);
+            const view = new DataView(buffer);
+            const writeString = (view, offset, string) => { for (let i = 0; i < string.length; i++) view.setUint8(offset + i, string.charCodeAt(i)); };
+
+            writeString(view, 0, 'RIFF');
+            view.setUint32(4, 36 + dataSize, true);
+            writeString(view, 8, 'WAVE');
+            writeString(view, 12, 'fmt ');
+            view.setUint32(16, 16, true);
+            view.setUint16(20, 1, true);
+            view.setUint16(22, numChannels, true);
+            view.setUint32(24, sampleRate, true);
+            view.setUint32(28, byteRate, true);
+            view.setUint16(32, blockAlign, true);
+            view.setUint16(34, bitsPerSample, true);
+            writeString(view, 36, 'data');
+            view.setUint32(40, dataSize, true);
+            let offset = 44;
+            for (let i = 0; i < pcmData.length; i++) { view.setInt16(offset, pcmData[i], true); offset += 2; }
+            return new Blob([view], { type: 'audio/wav' });
+        }
+
+        async function fetchGeminiTTSAPI(text) {
+            const payload = {
+                contents: [{ parts: [{ text: text }] }],
+                generationConfig: { responseModalities: ["AUDIO"], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: "Fenrir" } } } }
+            };
+            const response = await fetch(TTS_API_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+            if (!response.ok) throw new Error("TTS API 呼叫失敗");
+            const result = await response.json();
+            const audioData = result.candidates?.[0]?.content?.parts?.[0]?.inlineData;
+            if (!audioData) throw new Error("未回傳語音資料");
+            const match = audioData.mimeType.match(/rate=(\d+)/);
+            const sampleRate = match ? parseInt(match[1]) : 24000;
+            return URL.createObjectURL(pcmToWav(base64ToInt16Array(audioData.data), sampleRate));
+        }
+
+        async function fetchImagenAPI(promptText) {
+            const payload = {
+                instances: { prompt: promptText },
+                parameters: { sampleCount: 1 }
+            };
+            const response = await fetch(IMAGEN_API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (!response.ok) throw new Error("圖片生成 API 呼叫失敗");
+            const result = await response.json();
+            return `data:image/png;base64,${result.predictions[0].bytesBase64Encoded}`;
+        }
+
+        function setAILoading(isLoading) {
+            const container = document.getElementById('ai-output-container');
+            const loading = document.getElementById('ai-loading');
+            const outputText = document.getElementById('ai-response-text');
+            container.classList.remove('hidden');
+            if (isLoading) {
+                loading.classList.remove('hidden');
+                outputText.classList.add('opacity-50'); 
+            } else {
+                loading.classList.add('hidden');
+                outputText.classList.remove('opacity-50');
+            }
+        }
+
+        document.getElementById('btn-generate-insight').addEventListener('click', async () => {
+            // 抓取具有 active class 的按鈕文字
+            const activeBtn = document.querySelector('.timeframe-btn.bg-blue-600');
+            const timeframeLabel = activeBtn ? activeBtn.textContent.trim() : "全時期";
+            const raysCpw = document.getElementById('rays-cpw').textContent;
+            const metsCpw = document.getElementById('mets-cpw').textContent;
+            const raysWins = document.getElementById('rays-wins').textContent;
+            const metsWins = document.getElementById('mets-wins').textContent;
+
+            const prompt = `請以台灣知名棒球主播「徐展元」極度熱血、戲劇化的口吻，寫一篇約 150 字的分析。著重於金錢效能的巨大落差。
+務必自然融入他的招牌語錄或變體（例如：「喜愛棒球、熱愛棒球的球迷朋友」、「大都會的鈔票就像變了心的女朋友，回不來啦！」、「像斷了線的風箏」等）。
+【區間】：${timeframeLabel}
+【光芒】：勝場 ${raysWins} 場，每勝成本 ${raysCpw}。
+【大都會】：勝場 ${metsWins} 場，每勝成本 ${metsCpw}。`;
+
+            const systemPrompt = "你是一位風格模仿台灣知名棒球主播『徐展元』的熱血球評，精通 MLB 進階數據，說話充滿戲劇張力與熱忱。";
+
+            setAILoading(true);
+            document.getElementById('btn-play-audio').classList.add('hidden');
+            try {
+                const response = await fetchGeminiAPI(prompt, systemPrompt);
+                currentResponseText = response;
+                document.getElementById('ai-response-text').innerHTML = response.replace(/\n/g, '<br>');
+                document.getElementById('btn-play-audio').classList.remove('hidden');
+            } catch (error) {
+                document.getElementById('ai-response-text').innerHTML = `<span class="text-red-400">發生錯誤：${error.message}</span>`;
+            } finally {
+                setAILoading(false);
+            }
+        });
+
+        document.getElementById('btn-ask-ai').addEventListener('click', async () => {
+            const question = document.getElementById('ai-question-input').value.trim();
+            if (!question) { alert("請先輸入您的問題！"); return; }
+            const prompt = `使用者問題：\n"${question}"\n請用「徐展元」主播熱血、激昂的口吻給出專業、簡明扼要（150字內）的回答，可適度加入他的經典名言。`;
+            const systemPrompt = "你是一位風格模仿台灣知名棒球主播『徐展元』的熱血球評，精通 MLB 營運策略與數據分析。";
+            
+            setAILoading(true);
+            document.getElementById('btn-play-audio').classList.add('hidden');
+            try {
+                const response = await fetchGeminiAPI(prompt, systemPrompt);
+                currentResponseText = response;
+                document.getElementById('ai-response-text').innerHTML = `<strong>問題：${question}</strong><br><br>${response.replace(/\n/g, '<br>')}`;
+                document.getElementById('ai-question-input').value = '';
+                document.getElementById('btn-play-audio').classList.remove('hidden');
+            } catch (error) {
+                document.getElementById('ai-response-text').innerHTML = `<span class="text-red-400">發生錯誤：${error.message}</span>`;
+            } finally {
+                setAILoading(false);
+            }
+        });
+
+        let currentAudio = null;
+        document.getElementById('btn-play-audio').addEventListener('click', async () => {
+            const btn = document.getElementById('btn-play-audio');
+            if (currentAudio) {
+                currentAudio.pause();
+                currentAudio = null;
+                btn.innerHTML = "✨ 語音播報";
+                return;
+            }
+            if (!currentResponseText) return;
+            btn.innerHTML = "<span class='loader w-3 h-3 border-2 border-white border-b-transparent mr-1'></span> 讀取中";
+            btn.disabled = true;
+            try {
+                const cleanText = currentResponseText.replace(/[*#]/g, '');
+                const audioUrl = await fetchGeminiTTSAPI("以極度熱血、激昂的體育主播語氣大聲播報：" + cleanText.substring(0, 500));
+                currentAudio = new Audio(audioUrl);
+                currentAudio.play();
+                btn.innerHTML = "⏹ 停止播報";
+                currentAudio.onended = () => { btn.innerHTML = "✨ 語音播報"; currentAudio = null; };
+            } catch (error) {
+                alert("語音合成失敗：" + error.message);
+                btn.innerHTML = "✨ 語音播報";
+            } finally {
+                btn.disabled = false;
+            }
+        });
+
+        document.getElementById('btn-simulate-trade').addEventListener('click', async () => {
+            const tradeInput = document.getElementById('ai-trade-input').value.trim();
+            if (!tradeInput) { alert("請先輸入您的假設性操作！"); return; }
+            const metsCpw = document.getElementById('mets-cpw').textContent;
+            const raysCpw = document.getElementById('rays-cpw').textContent;
+            const prompt = `大都會每勝成本 ${metsCpw}，光芒 ${raysCpw}。假設操作：\n"${tradeInput}"\n請用「徐展元」的熱血口吻評估此操作的 CP 值。若是亂花錢請用「這錢就像變了心的女朋友回不來啦」痛批，精打細算請激昂讚賞。限 150 字內。`;
+            const systemPrompt = "你是一位極度看重投資報酬率，且說話風格如同主播『徐展元』般熱血的 MLB 總管顧問。";
+
+            setAILoading(true);
+            document.getElementById('btn-play-audio').classList.add('hidden');
+            try {
+                const response = await fetchGeminiAPI(prompt, systemPrompt);
+                currentResponseText = response;
+                document.getElementById('ai-response-text').innerHTML = `<strong>假設操作：${tradeInput}</strong><br><br>${response.replace(/\n/g, '<br>')}`;
+                document.getElementById('ai-trade-input').value = '';
+                document.getElementById('btn-play-audio').classList.remove('hidden');
+            } catch (error) {
+                document.getElementById('ai-response-text').innerHTML = `<span class="text-red-400">發生錯誤：${error.message}</span>`;
+            } finally {
+                setAILoading(false);
+            }
+        });
+
+        document.getElementById('btn-scout-player').addEventListener('click', async () => {
+            const playerInput = document.getElementById('ai-player-input').value.trim();
+            if (!playerInput) { alert("請先輸入球員姓名！"); return; }
+            
+            const metsCpw = document.getElementById('mets-cpw').textContent;
+            const raysCpw = document.getElementById('rays-cpw').textContent;
+            const prompt = `目前大都會每勝成本 ${metsCpw}，光芒每勝成本 ${raysCpw}。請評估大聯盟球員「${playerInput}」。
+他的身價、實力與過往合約表現，比較像「光芒的高 CP 值神偷」還是「大都會的溢價碎鈔機」？請用「徐展元」熱血、戲劇化的口吻給出 150 字內的評論，並大膽下定論。`;
+            const systemPrompt = "你是一位精通 MLB 薪資結構，且說話風格如同熱血主播『徐展元』的棒球球探。";
+
+            setAILoading(true);
+            document.getElementById('btn-play-audio').classList.add('hidden');
+            try {
+                const response = await fetchGeminiAPI(prompt, systemPrompt);
+                currentResponseText = response;
+                document.getElementById('ai-response-text').innerHTML = `<strong>球探報告：${playerInput}</strong><br><br>${response.replace(/\n/g, '<br>')}`;
+                document.getElementById('ai-player-input').value = '';
+                document.getElementById('btn-play-audio').classList.remove('hidden');
+            } catch (error) {
+                document.getElementById('ai-response-text').innerHTML = `<span class="text-red-400">發生錯誤：${error.message}</span>`;
+            } finally {
+                setAILoading(false);
+            }
+        });
+
+        // 🔥 新增：鄉民炎上產生器邏輯
+        document.getElementById('btn-generate-troll').addEventListener('click', async () => {
+            const target = document.getElementById('troll-target').value;
+            const targetText = document.getElementById('troll-target').options[document.getElementById('troll-target').selectedIndex].text;
+            const metsCpw = document.getElementById('mets-cpw').textContent;
+            const raysCpw = document.getElementById('rays-cpw').textContent;
+            const metsWins = document.getElementById('mets-wins').textContent;
+            const raysWins = document.getElementById('rays-wins').textContent;
+
+            let prompt = `請以台灣 PTT 棒球板 (Baseball) 資深酸民的口吻，寫一篇極度挑釁、充滿網路迷因與反串的引戰廢文（約 150-200 字）。
+必須引用以下真實數據：大都會每勝成本 ${metsCpw} (${metsWins}勝)，光芒每勝成本 ${raysCpw} (${raysWins}勝)。\n\n`;
+
+            if (target === 'mets_owner') {
+                prompt += `攻擊目標：紐約大都會老闆 Cohen。嘲笑他把美金當冥紙燒，花錢如流水卻換來這種戰績，被光芒隊的低薪陣容當兒子打。`;
+            } else if (target === 'rays_owner') {
+                prompt += `攻擊目標：光芒隊老闆 Stu Sternberg。痛批他根本是吸血鬼，球隊戰績這麼好卻死不肯花錢補強，整天只想著省錢跟賣球員，把球迷當韭菜。`;
+            } else {
+                prompt += `攻擊目標：紐約大都會的死忠球迷。嘲笑他們整天吹噓大城市預算，結果球隊打成這副德性，戰績還不如薪資只有他們零頭的佛州窮酸球隊。`;
+            }
+
+            const systemPrompt = "你是一個混跡 PTT 棒球板多年的資深鄉民，精通各種嘲諷、酸言酸語與棒球梗，說話極度嗆辣但不帶髒字。";
+
+            setAILoading(true);
+            document.getElementById('btn-play-audio').classList.add('hidden');
+            try {
+                const response = await fetchGeminiAPI(prompt, systemPrompt);
+                currentResponseText = response;
+                document.getElementById('ai-response-text').innerHTML = `<strong class="text-red-500">🔥 炎上目標：${targetText}</strong><br><br>${response.replace(/\n/g, '<br>')}`;
+                document.getElementById('btn-play-audio').classList.remove('hidden');
+            } catch (error) {
+                document.getElementById('ai-response-text').innerHTML = `<span class="text-red-400">發生錯誤：${error.message}</span>`;
+            } finally {
+                setAILoading(false);
+            }
+        });
+
+        // 🌌 新增：平行時空幻想機邏輯
+        document.getElementById('btn-alternate-universe').addEventListener('click', async () => {
+            const metsPay = document.getElementById('mets-pay').textContent;
+            const raysCpw = document.getElementById('rays-cpw').textContent;
+
+            const prompt = `目前的現實是：光芒隊能用極低的每勝成本 (${raysCpw}) 贏球。
+請發揮極度荒謬的科幻想像力，寫一段約 150 字的棒球狂想曲：
+「如果光芒隊的高層突然獲得了大都會等級的 ${metsPay} 預算，他們會做出什麼瘋狂的建軍舉動？」
+（例如：秘密研發複製人投手、買下整座月球當主場、用 AI 機器人取代裁判等等，越浮誇越好）。`;
+
+            const systemPrompt = "你是一位充滿黑色幽默與科幻腦洞的棒球專欄作家。";
+
+            setAILoading(true);
+            document.getElementById('btn-play-audio').classList.add('hidden');
+            try {
+                const response = await fetchGeminiAPI(prompt, systemPrompt);
+                currentResponseText = response;
+                document.getElementById('ai-response-text').innerHTML = `<strong class="text-blue-400">🌌 瘋狂宇宙模擬中...</strong><br><br>${response.replace(/\n/g, '<br>')}`;
+                document.getElementById('btn-play-audio').classList.remove('hidden');
+            } catch (error) {
+                document.getElementById('ai-response-text').innerHTML = `<span class="text-red-400">發生錯誤：${error.message}</span>`;
+            } finally {
+                setAILoading(false);
+            }
+        });
+
+        document.getElementById('btn-generate-image').addEventListener('click', async () => {
+            const metsCpw = document.getElementById('mets-cpw').textContent;
+            const raysCpw = document.getElementById('rays-cpw').textContent;
+            
+            const promptText = `A satirical sports comic. A wealthy baseball team owner wearing bright orange and royal blue is carelessly throwing piles of money into a burning fire, representing an absurd ${metsCpw} cost per win. Next to him, a very smart, budget-conscious baseball manager wearing navy blue and bright yellow is carefully calculating with an abacus and holding a shiny baseball trophy, representing a highly efficient ${raysCpw} cost per win. Funny, sharp lines, political cartoon style, high quality illustration.`;
+
+            setAILoading(true);
+            document.getElementById('btn-play-audio').classList.add('hidden'); // 圖片不需要語音
+            document.getElementById('ai-response-text').innerHTML = "<span class='text-blue-400 font-bold'>正在召喚 Imagen 4 繪製諷刺漫畫，請稍候 (約需 10-15 秒)...</span>";
+            
+            try {
+                const imageUrl = await fetchImagenAPI(promptText);
+                document.getElementById('ai-response-text').innerHTML = `
+                    <strong class="text-blue-400">✨ 生成完成！這是根據您所選區間（大都會 ${metsCpw} vs 光芒 ${raysCpw}）繪製的諷刺漫畫：</strong>
+                    <div class="mt-4 flex flex-col items-center">
+                        <img src="${imageUrl}" class="rounded-lg border-2 border-gray-600 max-w-full h-auto shadow-xl" alt="AI 諷刺漫畫">
+                        <p class="text-xs text-gray-500 mt-3 text-center tracking-wider">✨ Powered by Imagen 4</p>
+                    </div>`;
+            } catch (error) {
+                document.getElementById('ai-response-text').innerHTML = `<span class="text-red-400">圖片生成發生錯誤：${error.message}</span>`;
+            } finally {
+                setAILoading(false);
+            }
+        });
+
+        function renderCostChart(labels, rCpw, mCpw) {
+            const ctx = document.getElementById('costChart').getContext('2d');
+            if (costChartInstance) costChartInstance.destroy();
+            Chart.defaults.color = '#9CA3AF';
+            costChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: { labels: labels, datasets: [{ label: '大都會每勝成本', data: mCpw, backgroundColor: '#002D72', borderColor: '#8FBCE6', borderWidth: 1 }, { label: '光芒每勝成本', data: rCpw, backgroundColor: '#F5D130', borderColor: '#D4AF37', borderWidth: 1 }] },
+                options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, grid: { color: '#374151' }, ticks: { callback: function(value) { return '$' + value + 'M'; } } }, x: { grid: { display: false } } }, plugins: { legend: { position: 'top' }, tooltip: { callbacks: { label: function(context) { return context.dataset.label + ': $' + context.raw.toFixed(2) + 'M'; } } } } }
+            });
+        }
+
+        function renderPerfChart(rPay, mPay, rWins, mWins) {
+            const ctx = document.getElementById('perfChart').getContext('2d');
+            if (perfChartInstance) perfChartInstance.destroy();
+            perfChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: { labels: ['大都會 (Mets)', '光芒 (Rays)'], datasets: [{ label: '期間總薪資 (M$)', data: [mPay, rPay], backgroundColor: ['rgba(0, 45, 114, 0.7)', 'rgba(0, 40, 93, 0.7)'], borderColor: ['#002D72', '#00285D'], borderWidth: 1, yAxisID: 'y' }, { label: '期間總勝場 (W)', data: [mWins, rWins], backgroundColor: ['rgba(255, 89, 16, 0.7)', 'rgba(245, 209, 48, 0.7)'], borderColor: ['#FF5910', '#F5D130'], borderWidth: 1, yAxisID: 'y1' }] },
+                options: { responsive: true, maintainAspectRatio: false, scales: { y: { type: 'linear', display: true, position: 'left', title: { display: true, text: '總薪資 (M$)' }, grid: { color: '#374151' } }, y1: { type: 'linear', display: true, position: 'right', title: { display: true, text: '總勝場 (W)' }, grid: { drawOnChartArea: false } }, x: { grid: { display: false } } }, plugins: { legend: { position: 'top' } } }
+            });
+        }
+
+        // 初始化
+        window.onload = updateDashboard;
+    </script>
+</body>
+</html>
